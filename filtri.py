@@ -12,3 +12,8 @@ def adjust_contrast(immagine_input, alpha=1.0, beta=0):
     immagine_regolata = cv2.convertScaleAbs(immagine_input, alpha=alpha, beta=beta)
     return immagine_regolata
 
+#Trasformazione scala di grigi
+def correct_color(immagine_input):
+    immagine_corretta = cv2.cvtColor(immagine_input, cv2.COLOR_BGR2GRAY)
+    return immagine_corretta
+
