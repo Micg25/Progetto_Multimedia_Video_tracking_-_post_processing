@@ -17,3 +17,7 @@ def correct_color(immagine_input):
     immagine_corretta = cv2.cvtColor(immagine_input, cv2.COLOR_BGR2GRAY)
     return immagine_corretta
 
+#Sfocatura gaussiana
+def blurring(immagine_input):
+    immagine_sfocata = cv2.GaussianBlur(immagine_input, (5, 5), 0)
+    return immagine_sfocata
