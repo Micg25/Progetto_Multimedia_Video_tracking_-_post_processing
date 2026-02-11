@@ -36,4 +36,10 @@ class Tracciamento:
 
         return risultati_tracciamento
 
-
+    def _rimuovi_entita_obsolete(self, risultati_tracciamento):
+        # Estrazione identificativi delle entità correntemente rilevate
+        id_attivi = {r[0] for r in risultati_tracciamento}
+        # Rimozione delle entità non più presenti
+        id_da_rimuovere = [id_ent for id_ent in self.coordinate_centrali.keys() if id_ent not in id_attivi]
+        for id_ent in id_da_rimuovere:
+            del self.coordinate_centrali[id_ent]
