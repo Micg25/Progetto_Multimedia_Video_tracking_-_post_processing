@@ -1,23 +1,44 @@
 import numpy as np
 import cv2
-#Applicazione effetto mascheratura regione
-def mask(immagine_input):
-    matrice_maschera = np.zeros(immagine_input.shape[:2], dtype="uint8")
-    cv2.rectangle(matrice_maschera, (500, 340), (800, 720), 255, -1)
-    immagine_mascherata = cv2.bitwise_and(immagine_input, immagine_input, mask=matrice_maschera)
-    return immagine_mascherata
 
-#Modifica luminosità e contrasto
-def adjust_contrast(immagine_input, alpha=1.0, beta=0):
-    immagine_regolata = cv2.convertScaleAbs(immagine_input, alpha=alpha, beta=beta)
-    return immagine_regolata
+def jpeg_compression(immagine_input, quality=50):
+    # Codifica l'immagine in formato JPEG
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    _, encoded_img = cv2.imencode('.jpg', immagine_input, encode_param)
+    
+    #Decodifica l'immagine compressa
+    immagine_compressa = cv2.imdecode(encoded_img, cv2.IMREAD_COLOR)
+    
+    return immagine_compressa
 
-#Trasformazione scala di grigi
-def correct_color(immagine_input):
-    immagine_corretta = cv2.cvtColor(immagine_input, cv2.COLOR_BGR2GRAY)
-    return immagine_corretta
 
-#Sfocatura gaussiana
-def blurring(immagine_input):
-    immagine_sfocata = cv2.GaussianBlur(immagine_input, (5, 5), 0)
+def blurring(immagine_input, kernel_size=(5, 5), sigma=0):
+
+    immagine_sfocata = cv2.GaussianBlur(immagine_input, kernel_size, sigma)
     return immagine_sfocata
+
+
+def unsharp_masking(immagine_input, kernel_size=(5, 5), sigma=1.0, amount=1.5, threshold=0):
+    #Crea versione sfocata
+    blurred = cv2.GaussianBlur(immagine_input, kernel_size, sigma)
+    
+    # Calcola la maschera (differenza tra originale e sfocato)
+    mask = cv2.subtract(immagine_input, blurred)
+    
+    #Applica unsharp masking con threshold
+    if threshold > 0:
+        # Applica sharpening solo dove la differenza supera la soglia
+        low_contrast_mask = np.absolute(mask) < threshold
+        np.copyto(mask, 0, where=low_contrast_mask)
+    
+    #Combina: Originale + amount * Maschera
+    immagine_sharpened = cv2.addWeighted(
+        immagine_input, 1.0, 
+        mask, amount, 
+        0
+    )
+    
+    # Clip valori nell'intervallo [0, 255]
+    immagine_sharpened = np.clip(immagine_sharpened, 0, 255).astype(np.uint8)
+    
+    return immagine_sharpened
