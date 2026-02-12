@@ -225,7 +225,7 @@ if mse_sharp is not None:
 print("RIEPILOGO COMPARATIVO")
 
 if all(v is not None for v in [mse_jpeg, mse_blur, mse_sharp]):
-    print("\nClassifica per PRESERVAZIONE QUALITÀ (ordinati dal migliore al peggiore):")
+    print("\nRisultati finali")
     
     risultati = [
         ("JPEG Compression", mse_jpeg, psnr_jpeg, ssim_jpeg),
