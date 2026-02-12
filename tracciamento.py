@@ -1,10 +1,12 @@
 import math
 class Tracciamento:
-    def __init__(self):
+    def __init__(self, distanza_max=350):
         #Contatore id
         self.identificativo_corrente = 0
         #Registro coordinate entità tracciate
         self.coordinate_centrali = {}
+        #Distanza massima per considerare stesso oggetto
+        self.distanza_max = distanza_max
 
     def update(self, rettangoli_rilevati):
         #Lista risultati con box e identificativi
@@ -20,7 +22,7 @@ class Tracciamento:
             for id_entita, punto_centrale in self.coordinate_centrali.items():
                 distanza_euclidea = math.hypot(centro_x - punto_centrale[0], centro_y - punto_centrale[1])
 
-                if distanza_euclidea < 25:
+                if distanza_euclidea < self.distanza_max:
                     self.coordinate_centrali[id_entita] = (centro_x, centro_y)
                     risultati_tracciamento.append([id_entita, coord_x, coord_y, larghezza, altezza])
                     entita_gia_tracciata = True
@@ -43,3 +45,6 @@ class Tracciamento:
         id_da_rimuovere = [id_ent for id_ent in self.coordinate_centrali.keys() if id_ent not in id_attivi]
         for id_ent in id_da_rimuovere:
             del self.coordinate_centrali[id_ent]
+
+    def get_numero_oggetti_totali(self):
+        return self.identificativo_corrente
