@@ -1,6 +1,0 @@
-#!/home/mic/Desktop/Università/Multimedia/Progetto_Multimedia_Video_tracking_-_post_processing/multimedia/bin/python3
-import sys
-from imageio.__main__ import download_bin_main
-if __name__ == '__main__':
-    sys.argv[0] = sys.argv[0].removesuffix('.exe')
-    sys.exit(download_bin_main())
