@@ -1,11 +1,11 @@
 import cv2
 from Calcolo_metriche import compare_video_sequences
-from filtri import jpeg_compression, blurring, unsharp_masking
-from tracciamento import Tracciamento
+from filtri import jpeg_compression, blurring, unsharp_masking, moving_average_filter, TemporalMovingAverageFilter, moving_average_spatio_temporal
+from tracciamento import Tracciamento, filtra_box_sovrapposti
 
 
 #Caricamento sorgente video
-cattura_video = cv2.VideoCapture('video/traffico1.mp4')
+cattura_video = cv2.VideoCapture('video/birds1.mp4')
 if not cattura_video.isOpened():
     print("Impossibile trovare il video!")
     exit()
@@ -86,14 +86,19 @@ else:
 
 print(f"Distanza euclidea configurata: {distanza_euclidea_max} pixel")
 
-#Inizializzazione sistema tracciamento con distanza configurata
-sistema_tracciamento = Tracciamento(distanza_max=distanza_euclidea_max)
+#Inizializzazione sistemi tracciamento con distanza configurata
+sistema_tracciamento = Tracciamento(distanza_max=distanza_euclidea_max, use_feature_matching=True)  # Per frame originali con Feature Matching
+sistema_tracciamento_moving_avg = Tracciamento(distanza_max=distanza_euclidea_max, use_feature_matching=True)  # Per frame con Moving Average + Feature Matching
+
+# Inizializzazione filtro temporale per Moving Average spazio-temporale
+temporal_filter = TemporalMovingAverageFilter(buffer_size=5)
 
 # Riposizionamento cattura video all'inizio
 cattura_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-#Inizializzazione rilevatore sfondo con algoritmo MOG2
-rilevatore_entita = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=40) 
+#Inizializzazione rilevatori sfondo con algoritmo MOG2
+rilevatore_entita = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=40)  # Per frame originali
+rilevatore_entita_moving_avg = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=40)  # Per frame con Moving Average 
 
 #Inizializzazione variabili
 fotogramma_prec = None
@@ -110,16 +115,17 @@ while True:
     if not stato_acquisizione:
         break
 
-    # Estrazione area di interesse con coordinate definite
-    regione_interesse = fotogramma_attuale[pos_y_roi:pos_y_roi+altezza_roi, pos_x_roi:pos_x_roi+larghezza_roi]
+    # Estrazione area di interesse con coordinate definite - COPIA PULITA per MOG2
+    regione_interesse_pulita = fotogramma_attuale[pos_y_roi:pos_y_roi+altezza_roi, pos_x_roi:pos_x_roi+larghezza_roi].copy()
     
     # Fotogramma completo per calcolo metriche (non ROI)
     sequenza_fotogrammi.append(fotogramma_attuale.copy())
     fotogramma_prec = fotogramma_attuale.copy()
-    regione_prec = regione_interesse.copy()
+    regione_prec = regione_interesse_pulita.copy()
     
-    # Fase 1: Identificazione entità presenti
-    maschera_rilevamento = rilevatore_entita.apply(regione_interesse)
+    # TRACCIAMENTO SU FRAME ORIGINALE
+    # Fase 1: Identificazione entità presenti su COPIA PULITA
+    maschera_rilevamento = rilevatore_entita.apply(regione_interesse_pulita.copy())
     _, maschera_rilevamento = cv2.threshold(maschera_rilevamento, 254, 255, cv2.THRESH_BINARY)
     contorni_rilevati, _ = cv2.findContours(maschera_rilevamento, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     rilevamenti_validi = []
@@ -129,13 +135,69 @@ while True:
         if superficie_contorno > 300:
             coord_x, coord_y, dimensione_w, dimensione_h = cv2.boundingRect(singolo_contorno)
             rilevamenti_validi.append([coord_x, coord_y, dimensione_w, dimensione_h])
+    
+    # Filtra box contenuti in altri box (priorità al box più grande)
+    rilevamenti_validi = filtra_box_sovrapposti(rilevamenti_validi)
+    
+    # Crea copia per visualizzazione con box
+    regione_interesse = regione_interesse_pulita.copy()
 
-    # Fase 2: Tracciamento entità rilevate
-    risultati_tracciamento = sistema_tracciamento.update(rilevamenti_validi)
+    # Fase 2: Tracciamento con FEATURE MATCHING su frame originale
+    # Passa il frame ROI per l'estrazione delle features
+    risultati_tracciamento = sistema_tracciamento.update(
+        rilevamenti_validi,
+        frame_roi=regione_interesse_pulita  # Frame per feature extraction
+    )
+    
+    # Visualizzazione con box e ID
     for singolo_risultato in risultati_tracciamento:
         id_entita, coord_x, coord_y, dimensione_w, dimensione_h = singolo_risultato
+        
+        # Box e ID
         cv2.putText(regione_interesse, str(id_entita), (coord_x, coord_y - 15), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
         cv2.rectangle(regione_interesse, (coord_x, coord_y), (coord_x + dimensione_w, coord_y + dimensione_h), (0, 255, 0), 3)
+    
+    # TRACCIAMENTO SU FRAME CON MOVING AVERAGE SPAZIO-TEMPORALE
+    # Applica filtro media mobile spazio-temporale al fotogramma completo
+    fotogramma_moving_avg_tracking = moving_average_spatio_temporal(
+        fotogramma_attuale.copy(), 
+        temporal_filter, 
+        spatial_kernel_size=3  # Kernel piccolo per non sfuocare troppo
+    )
+    # Estrai ROI pulita per MOG2
+    regione_interesse_moving_avg_pulita = fotogramma_moving_avg_tracking[pos_y_roi:pos_y_roi+altezza_roi, pos_x_roi:pos_x_roi+larghezza_roi].copy()
+    
+    # Fase 1: Identificazione entità presenti su frame con moving average (su copia pulita senza box)
+    maschera_rilevamento_moving_avg = rilevatore_entita_moving_avg.apply(regione_interesse_moving_avg_pulita.copy())
+    _, maschera_rilevamento_moving_avg = cv2.threshold(maschera_rilevamento_moving_avg, 254, 255, cv2.THRESH_BINARY)
+    contorni_rilevati_moving_avg, _ = cv2.findContours(maschera_rilevamento_moving_avg, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    rilevamenti_validi_moving_avg = []
+    for singolo_contorno in contorni_rilevati_moving_avg:
+        superficie_contorno = cv2.contourArea(singolo_contorno)
+        if superficie_contorno > 300:
+            coord_x, coord_y, dimensione_w, dimensione_h = cv2.boundingRect(singolo_contorno)
+            rilevamenti_validi_moving_avg.append([coord_x, coord_y, dimensione_w, dimensione_h])
+    
+    # Filtra box contenuti in altri box (priorità al box più grande)
+    rilevamenti_validi_moving_avg = filtra_box_sovrapposti(rilevamenti_validi_moving_avg)
+    
+    # Crea NUOVA copia per visualizzazione con box di tracciamento
+    regione_interesse_moving_avg = regione_interesse_moving_avg_pulita.copy()
+    
+    # Fase 2: Tracciamento con FEATURE MATCHING su frame con moving average
+    # Passa il frame ROI per l'estrazione delle features
+    risultati_tracciamento_moving_avg = sistema_tracciamento_moving_avg.update(
+        rilevamenti_validi_moving_avg, 
+        frame_roi=regione_interesse_moving_avg_pulita  # Frame per feature extraction
+    )
+    
+    # Visualizzazione con box e ID
+    for singolo_risultato in risultati_tracciamento_moving_avg:
+        id_entita, coord_x, coord_y, dimensione_w, dimensione_h = singolo_risultato
+        
+        # Box e ID
+        cv2.putText(regione_interesse_moving_avg, str(id_entita), (coord_x, coord_y - 15), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+        cv2.rectangle(regione_interesse_moving_avg, (coord_x, coord_y), (coord_x + dimensione_w, coord_y + dimensione_h), (0, 255, 0), 3)
 
     # Applicazione algoritmi di qualità
     # Algoritmo 1: Compressione JPEG (quality=50) - Introduce artefatti
@@ -158,17 +220,23 @@ while True:
         flag_debug_stampato = True
     
     # Rendering finestre visualizzazione
-    cv2.imshow("ROI + Tracking", regione_interesse)
+    cv2.imshow("ROI + Tracking (Original + Features)", regione_interesse)
+    cv2.imshow("ROI + Tracking (MA + Features)", regione_interesse_moving_avg)
     cv2.imshow("Original", fotogramma_attuale)
     cv2.imshow("JPEG Compressed (Q=50)", fotogramma_jpeg)
     cv2.imshow("Gaussian Blur", fotogramma_blurred)
     cv2.imshow("Sharpened (Unsharp)", fotogramma_sharpened)
 
-    # Visualizzazione maschera background subtraction (per debug tracking)
-    cv2.namedWindow("Background Mask", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Background Mask", 400, 300) 
+    # Visualizzazione maschere background subtraction (per debug tracking)
+    cv2.namedWindow("Background Mask (Original + Features)", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Background Mask (Original + Features)", 400, 300) 
     maschera_ridimensionata = cv2.resize(maschera_rilevamento, (400, 300)) 
-    cv2.imshow("Background Mask", maschera_ridimensionata)
+    cv2.imshow("Background Mask (Original + Features)", maschera_ridimensionata)
+    
+    cv2.namedWindow("Background Mask (MA + Features)", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Background Mask (MA + Features)", 400, 300) 
+    maschera_moving_avg_ridimensionata = cv2.resize(maschera_rilevamento_moving_avg, (400, 300)) 
+    cv2.imshow("Background Mask (MA + Features)", maschera_moving_avg_ridimensionata)
 
     # Attesa minima per refresh finestre (1ms = massima fluidità)
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -177,12 +245,23 @@ while True:
 cattura_video.release()
 cv2.destroyAllWindows()
 
-# Stampa numero totale di oggetti individuati
-numero_oggetti_totali = sistema_tracciamento.get_numero_oggetti_totali()
-print(f"TRACCIAMENTO COMPLETATO")
-print(f"Numero totale di oggetti individuati: {numero_oggetti_totali}")
+# Stampa numero totale di oggetti individuati per entrambi i tracciamenti
+numero_oggetti_totali_originale = sistema_tracciamento.get_numero_oggetti_totali()
+numero_oggetti_totali_moving_avg = sistema_tracciamento_moving_avg.get_numero_oggetti_totali()
 
-
+print(f"\nTRACCIAMENTO COMPLETATO")
+print(f"="*60)
+print(f"Frame ORIGINALE:")
+print(f"  • MOG2 Background Subtraction")
+print(f"  • Feature Matching (ORB + Brute Force matcher)")
+print(f"  Numero totale di oggetti individuati: {numero_oggetti_totali_originale}")
+print(f"\nFrame con MOVING AVERAGE:")
+print(f"  • Filtro temporale (buffer 5 frame) + Filtro spaziale (kernel 3x3)")
+print(f"  • MOG2 Background Subtraction")
+print(f"  • Feature Matching (ORB + Brute Force matcher)")
+print(f"  Numero totale di oggetti individuati: {numero_oggetti_totali_moving_avg}")
+print(f"\nDifferenza: {numero_oggetti_totali_originale - numero_oggetti_totali_moving_avg} oggetti")
+print(f"="*60)
 print("ANALISI METRICHE")
 print(" (MSE, PSNR, SSIM)")
 
