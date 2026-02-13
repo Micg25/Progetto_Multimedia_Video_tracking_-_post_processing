@@ -5,7 +5,7 @@ from tracciamento import Tracciamento, filtra_box_sovrapposti
 
 
 #Caricamento sorgente video
-cattura_video = cv2.VideoCapture('video/birds1.mp4')
+cattura_video = cv2.VideoCapture('video/traffico1.mp4')
 if not cattura_video.isOpened():
     print("Impossibile trovare il video!")
     exit()

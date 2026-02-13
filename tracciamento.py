@@ -2,6 +2,43 @@ import math
 import cv2
 import numpy as np
 
+class CoordinateSmoothing:
+    
+    #Applica smoothing esponenziale alle coordinate dei bounding box
+    #per ridurre il jitter del tracciamento.
+    
+    def __init__(self, alpha=0.3):
+  
+        self.alpha = alpha
+        self.smoothed_coords = {}  # {id: (x, y, w, h)}
+    
+    def smooth(self, id_obj, x, y, w, h):
+        
+        #Applica smoothing esponenziale alle coordinate.
+      
+        if id_obj not in self.smoothed_coords:
+            # Primo rilevamento, salva coordinate senza smoothing
+            self.smoothed_coords[id_obj] = (float(x), float(y), float(w), float(h))
+            return x, y, w, h
+        else:
+            # Applica media mobile esponenziale
+            prev_x, prev_y, prev_w, prev_h = self.smoothed_coords[id_obj]
+            
+            smooth_x = self.alpha * x + (1 - self.alpha) * prev_x
+            smooth_y = self.alpha * y + (1 - self.alpha) * prev_y
+            smooth_w = self.alpha * w + (1 - self.alpha) * prev_w
+            smooth_h = self.alpha * h + (1 - self.alpha) * prev_h
+            
+            # Salva coordinate smoothed
+            self.smoothed_coords[id_obj] = (smooth_x, smooth_y, smooth_w, smooth_h)
+            
+            return int(smooth_x), int(smooth_y), int(smooth_w), int(smooth_h)
+    
+    def remove(self, id_obj):
+        """Rimuove le coordinate smoothed per un ID obsoleto."""
+        if id_obj in self.smoothed_coords:
+            del self.smoothed_coords[id_obj]
+
 def filtra_box_sovrapposti(box_list):
     
     #Filtra i bounding box rimuovendo quelli completamente contenuti in altri box.
@@ -35,13 +72,18 @@ def filtra_box_sovrapposti(box_list):
     return box_filtrati
 
 class Tracciamento:
-    def __init__(self, distanza_max=350, use_feature_matching=False):
+    def __init__(self, distanza_max=350, use_feature_matching=False, use_smoothing=True, smoothing_alpha=0.3):
         #Contatore id
         self.identificativo_corrente = 0
         #Registro coordinate entità tracciate
         self.coordinate_centrali = {}
         #Distanza massima per considerare stesso oggetto
         self.distanza_max = distanza_max
+        
+        # Coordinate smoothing per ridurre jitter
+        self.use_smoothing = use_smoothing
+        if self.use_smoothing:
+            self.coordinate_smoother = CoordinateSmoothing(alpha=smoothing_alpha)
         
         # Feature matching per tracciamento più robusto
         self.use_feature_matching = use_feature_matching
@@ -121,6 +163,11 @@ class Tracciamento:
                                 'descriptors': descriptors_new,
                                 'keypoints': keypoints_new
                             }
+                            # Applica smoothing coordinate se abilitato
+                            if self.use_smoothing:
+                                coord_x, coord_y, larghezza, altezza = self.coordinate_smoother.smooth(
+                                    miglior_id, coord_x, coord_y, larghezza, altezza
+                                )
                             risultati_tracciamento.append([miglior_id, coord_x, coord_y, larghezza, altezza])
                         else:
                             # Nuovo oggetto
@@ -129,6 +176,11 @@ class Tracciamento:
                                 'descriptors': descriptors_new,
                                 'keypoints': keypoints_new
                             }
+                            # Applica smoothing coordinate se abilitato (primo frame = no smoothing)
+                            if self.use_smoothing:
+                                coord_x, coord_y, larghezza, altezza = self.coordinate_smoother.smooth(
+                                    self.identificativo_corrente, coord_x, coord_y, larghezza, altezza
+                                )
                             risultati_tracciamento.append([self.identificativo_corrente, coord_x, coord_y, larghezza, altezza])
                             self.identificativo_corrente += 1
                     else:
@@ -158,11 +210,21 @@ class Tracciamento:
 
             if distanza_euclidea < self.distanza_max:
                 self.coordinate_centrali[id_entita] = (centro_x, centro_y)
+                # Applica smoothing coordinate se abilitato
+                if self.use_smoothing:
+                    coord_x, coord_y, larghezza, altezza = self.coordinate_smoother.smooth(
+                        id_entita, coord_x, coord_y, larghezza, altezza
+                    )
                 risultati_tracciamento.append([id_entita, coord_x, coord_y, larghezza, altezza])
                 return True
         
         # Nuovo oggetto
         self.coordinate_centrali[self.identificativo_corrente] = (centro_x, centro_y)
+        # Applica smoothing coordinate se abilitato (primo frame = no smoothing)
+        if self.use_smoothing:
+            coord_x, coord_y, larghezza, altezza = self.coordinate_smoother.smooth(
+                self.identificativo_corrente, coord_x, coord_y, larghezza, altezza
+            )
         risultati_tracciamento.append([self.identificativo_corrente, coord_x, coord_y, larghezza, altezza])
         self.identificativo_corrente += 1
         return False
@@ -181,6 +243,9 @@ class Tracciamento:
             # Rimuovi anche features se presente
             if self.use_feature_matching and id_ent in self.oggetti_features:
                 del self.oggetti_features[id_ent]
+            # Rimuovi anche coordinate smoothed se presente
+            if self.use_smoothing:
+                self.coordinate_smoother.remove(id_ent)
 
     def get_numero_oggetti_totali(self):
         return self.identificativo_corrente
