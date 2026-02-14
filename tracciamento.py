@@ -39,37 +39,64 @@ class CoordinateSmoothing:
         if id_obj in self.smoothed_coords:
             del self.smoothed_coords[id_obj]
 
-def filtra_box_sovrapposti(box_list):
+def filtra_box_sovrapposti(box_list, iou_threshold=0.5):
+    #Filtra i bounding box rimuovendo quelli sovrapposti usando Non-Maximum Suppression (NMS).
+    #Unisce box con IoU > threshold mantenendo quello più grande.
     
-    #Filtra i bounding box rimuovendo quelli completamente contenuti in altri box.
-    #Mantiene solo i box più grandi quando c'è sovrapposizione completa.
 
     if len(box_list) <= 1:
         return box_list
     
-    # Ordina per area decrescente (box più grandi prima)
-    box_list_sorted = sorted(box_list, key=lambda b: b[2] * b[3], reverse=True)
+    # Converti in array numpy
+    boxes = np.array(box_list)
     
-    box_filtrati = []
+    # Estrai coordinate
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 0] + boxes[:, 2]
+    y2 = boxes[:, 1] + boxes[:, 3]
     
-    for i, box1 in enumerate(box_list_sorted):
-        x1, y1, w1, h1 = box1
-        contenuto = False
+    # Calcola aree
+    areas = boxes[:, 2] * boxes[:, 3]
+    
+    # Ordina per area decrescente (box più grandi hanno priorità)
+    indices = np.argsort(areas)[::-1]
+    
+    keep = []
+    
+    while len(indices) > 0:
+        # Prendi il box con area maggiore
+        current = indices[0]
+        keep.append(current)
         
-        # Controlla se box1 è contenuto in qualche box già accettato
-        for box2 in box_filtrati:
-            x2, y2, w2, h2 = box2
-            
-            # Verifica se box1 è completamente contenuto in box2
-            if (x1 >= x2 and y1 >= y2 and 
-                x1 + w1 <= x2 + w2 and y1 + h1 <= y2 + h2):
-                contenuto = True
-                break
+        if len(indices) == 1:
+            break
         
-        if not contenuto:
-            box_filtrati.append(box1)
+        # Calcola IoU con i rimanenti box
+        remaining = indices[1:]
+        
+        # Intersezione
+        xx1 = np.maximum(x1[current], x1[remaining])
+        yy1 = np.maximum(y1[current], y1[remaining])
+        xx2 = np.minimum(x2[current], x2[remaining])
+        yy2 = np.minimum(y2[current], y2[remaining])
+        
+        w = np.maximum(0, xx2 - xx1)
+        h = np.maximum(0, yy2 - yy1)
+        
+        intersection = w * h
+        
+        # Union
+        union = areas[current] + areas[remaining] - intersection
+        
+        # IoU
+        iou = intersection / union
+        
+        # Mantieni solo box con IoU < threshold (non sovrapposti)
+        indices = remaining[iou < iou_threshold]
     
-    return box_filtrati
+    # Ritorna box filtrati
+    return [box_list[i] for i in keep]
 
 class Tracciamento:
     def __init__(self, distanza_max=350, use_feature_matching=False, use_smoothing=True, smoothing_alpha=0.3):

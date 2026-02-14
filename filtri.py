@@ -63,56 +63,104 @@ def moving_average_filter(immagine_input, kernel_size=5):
     return immagine_filtrata
 
 
-class TemporalMovingAverageFilter:
-    
-    # Filtro Media Mobile TEMPORALE che mantiene un buffer di frame
-    #e calcola la media tra frame consecutivi per ridurre flickering e rumore temporale.
+class VideoStabilizer:
+
+    #Stabilizzazione video feature-based usando ORB e trasformazioni affini.
+    #Riduce vibrazioni della camera e falsi positivi nel tracking.
    
-    def __init__(self, buffer_size=5):
-        """
-        Args:
-            buffer_size: Numero di frame da mantenere nel buffer per la media (default=5)
-        """
-        self.buffer_size = buffer_size
-        self.frame_buffer = deque(maxlen=buffer_size)
     
-    def apply(self, frame):
-        """
-        Applica il filtro temporale al frame corrente.
+    def __init__(self, reference_frame, smoothing_radius=5):
+        self.reference_frame = reference_frame.copy()
+        self.smoothing_radius = smoothing_radius
         
-        Args:
-            frame: Frame corrente da filtrare
-            
-        Returns:
-            Frame filtrato con media mobile temporale
-        """
-        # Aggiungi frame corrente al buffer
-        self.frame_buffer.append(frame.copy())
+        # Detector ORB per feature extraction
+        self.orb = cv2.ORB_create(nfeatures=2000, scaleFactor=1.2, nlevels=8)
         
-        # Se il buffer non è ancora pieno, ritorna il frame originale
-        if len(self.frame_buffer) < self.buffer_size:
-            return frame
+        # Matcher per feature matching
+        self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         
-        # Calcola la media di tutti i frame nel buffer
-        frame_medio = np.mean(self.frame_buffer, axis=0).astype(np.uint8)
+        # Rileva features nel frame di riferimento
+        self.ref_keypoints, self.ref_descriptors = self.orb.detectAndCompute(
+            cv2.cvtColor(reference_frame, cv2.COLOR_BGR2GRAY), None
+        )
         
-        return frame_medio
-    
-    def reset(self):
-        """Resetta il buffer (utile quando si cambia video o si ricomincia)"""
-        self.frame_buffer.clear()
+        # Buffer per smoothing trasformazioni
+        self.transform_buffer = deque(maxlen=smoothing_radius)
+        
+        # Dimensioni frame
+        self.height, self.width = reference_frame.shape[:2]
+        
+    def stabilize(self, frame):
+        #Stabilizza il frame corrente rispetto al frame di riferimento.
 
+        if self.ref_descriptors is None or len(self.ref_descriptors) == 0:
+            return frame  # Fallback: ritorna frame originale
+        
+        # Converti in grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Rileva features nel frame corrente
+        curr_keypoints, curr_descriptors = self.orb.detectAndCompute(gray, None)
+        
+        if curr_descriptors is None or len(curr_descriptors) == 0:
+            return frame  # Nessuna feature trovata
+        
+        # Match features tra riferimento e frame corrente
+        matches = self.matcher.knnMatch(self.ref_descriptors, curr_descriptors, k=2)
+        
+        # Filtra buoni match usando Lowe's ratio test
+        good_matches = []
+        for match_pair in matches:
+            if len(match_pair) == 2:
+                m, n = match_pair
+                if m.distance < 0.7 * n.distance:  # Ratio test
+                    good_matches.append(m)
+        
+        # Serve almeno 4 match per calcolare omografia
+        if len(good_matches) < 10:
+            return frame  # Non abbastanza match, ritorna originale
+        
+        # Estrai punti corrispondenti
+        ref_pts = np.float32([self.ref_keypoints[m.queryIdx].pt for m in good_matches])
+        curr_pts = np.float32([curr_keypoints[m.trainIdx].pt for m in good_matches])
+        
+        # Calcola matrice di trasformazione (affine per maggiore stabilità)
+        # Usa RANSAC per gestire outlier
+        transform_matrix, mask = cv2.estimateAffinePartial2D(
+            curr_pts, ref_pts, 
+            method=cv2.RANSAC, 
+            ransacReprojThreshold=3.0
+        )
+        
+        if transform_matrix is None:
+            return frame  # Trasformazione non calcolabile
+        
+        # Applica smoothing alla trasformazione per evitare scatti
+        self.transform_buffer.append(transform_matrix)
+        
+        if len(self.transform_buffer) > 0:
+            # Media delle trasformazioni nel buffer
+            smooth_transform = np.mean(self.transform_buffer, axis=0)
+        else:
+            smooth_transform = transform_matrix
+        
+        # Applica trasformazione per stabilizzare il frame
+        stabilized_frame = cv2.warpAffine(
+            frame, 
+            smooth_transform, 
+            (self.width, self.height),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_REPLICATE
+        )
+        
+        return stabilized_frame
+    
+    def reset_reference(self, new_reference_frame):
 
-def moving_average_spatio_temporal(immagine_input, temporal_filter, spatial_kernel_size=3):
-    
-    #Applica filtro Media Mobile combinato SPAZIO-TEMPORALE.
-    #Prima applica filtro temporale, poi spaziale per massima riduzione rumore.
-  
-    # 1. Applica filtro TEMPORALE (riduce flickering tra frame)
-    frame_temporal_filtered = temporal_filter.apply(immagine_input)
-    
-    # 2. Applica filtro SPAZIALE (riduce rumore pixel)
-    frame_spatio_temporal = moving_average_filter(frame_temporal_filtered, kernel_size=spatial_kernel_size)
-    
-    return frame_spatio_temporal
+        #Aggiorna il frame di riferimento
+       
+        self.reference_frame = new_reference_frame.copy()
+        gray = cv2.cvtColor(new_reference_frame, cv2.COLOR_BGR2GRAY)
+        self.ref_keypoints, self.ref_descriptors = self.orb.detectAndCompute(gray, None)
+        self.transform_buffer.clear()
 
