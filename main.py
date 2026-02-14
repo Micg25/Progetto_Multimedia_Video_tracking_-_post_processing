@@ -5,7 +5,7 @@ from tracciamento import Tracciamento, filtra_box_sovrapposti
 
 
 #Caricamento sorgente video
-cattura_video = cv2.VideoCapture('video/traffico1.mp4')
+cattura_video = cv2.VideoCapture('video/traffico1cut.mp4')
 if not cattura_video.isOpened():
     print("Impossibile trovare il video!")
     exit()
@@ -352,7 +352,7 @@ mse_jpeg, psnr_jpeg, ssim_jpeg = compare_video_sequences(sequenza_fotogrammi, fo
 if mse_jpeg is not None:
     print("\n[1] ORIGINALE vs JPEG COMPRESSION (Quality=50)")
     print("    Effetto: Introduce artefatti di compressione lossy")
-    print(f"    MSE:  {mse_jpeg:.4f}  (atteso: ALTO)")
+    print(f"    MSE:  {mse_jpeg:.4f} ")
     print(f"    PSNR: {psnr_jpeg:.2f} dB  (atteso: BASSO/MEDIO, 25-35dB)")
     print(f"    SSIM: {ssim_jpeg:.4f}  (atteso: MEDIO/BASSO, 0.70-0.90)")
 
@@ -361,18 +361,18 @@ mse_blur, psnr_blur, ssim_blur = compare_video_sequences(sequenza_fotogrammi, fo
 if mse_blur is not None:
     print("\n[2] ORIGINALE vs GAUSSIAN BLURRING")
     print("    Effetto: Sfocatura gaussiana per smoothing generale")
-    print(f"    MSE:  {mse_blur:.4f}  (atteso: MEDIO)")
-    print(f"    PSNR: {psnr_blur:.2f} dB  (atteso: MEDIO-ALTO, 28-35dB)")
-    print(f"    SSIM: {ssim_blur:.4f}  (atteso: ALTO, 0.85-0.95)")
+    print(f"    MSE:  {mse_blur:.4f} ")
+    print(f"    PSNR: {psnr_blur:.2f} dB")
+    print(f"    SSIM: {ssim_blur:.4f}")
 
 # Metriche: ORIGINALE vs Unsharp Masking
 mse_sharp, psnr_sharp, ssim_sharp = compare_video_sequences(sequenza_fotogrammi, fotogrammi_sharpened)
 if mse_sharp is not None:
     print("\n[3] ORIGINALE vs UNSHARP MASKING (Sharpening)")
-    print("    Effetto: Aumenta nitidezza, possibili overshoot ai bordi")
-    print(f"    MSE:  {mse_sharp:.4f}  (atteso: MEDIO)")
-    print(f"    PSNR: {psnr_sharp:.2f} dB  (atteso: MEDIO/ALTO, 30-40dB)")
-    print(f"    SSIM: {ssim_sharp:.4f}  (atteso: MEDIO/ALTO, 0.80-0.95)")
+    print("    Effetto: Aumenta nitidezza")
+    print(f"    MSE:  {mse_sharp:.4f} ")
+    print(f"    PSNR: {psnr_sharp:.2f} dB")
+    print(f"    SSIM: {ssim_sharp:.4f}")
 
 # Riepilogo comparativo
 
