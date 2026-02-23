@@ -101,7 +101,7 @@ def filtra_box_sovrapposti(box_list, iou_threshold=0.5):
 class Tracciamento:
     def __init__(self, distanza_max=350, use_feature_matching=False, use_smoothing=True, smoothing_alpha=0.3):
         #Contatore id
-        self.identificativo_corrente = 0
+        self.identificativo_corrente = 1
         #Registro coordinate entità tracciate
         self.coordinate_centrali = {}
         #Distanza massima per considerare stesso oggetto

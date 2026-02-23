@@ -70,10 +70,10 @@ with st.sidebar:
     st.subheader("🎯 Parametri Tracking")
     distanza_euclidea = st.slider(
         "Distanza euclidea massima (pixel)",
-        min_value=25,
+        min_value=5,
         max_value=500,
-        value=350,
-        step=10,
+        value=50,
+        step=5,
         help="Distanza max per considerare lo stesso oggetto tra frame consecutivi"
     )
     
@@ -95,6 +95,34 @@ with st.sidebar:
     
     st.divider()
     
+    # Parametri rilevamento oggetti
+    st.subheader("🎯 Rilevamento Oggetti")
+    st.markdown("""
+    **Area minima**: Dimensione minima contorno (pixel²)  
+    - Basso (100-300): rileva oggetti piccoli/lontani  
+    - Alto (500-1500): solo oggetti grandi/vicini
+    
+    **Binary Threshold**: Soglia per maschera binaria  
+    - Basso (200-240): più permissivo, più rilevamenti  
+    - Alto (250-254): più restrittivo, meno rumore
+    
+    **Kernel Size**: Dimensione kernel morfologico  
+    - Piccolo (3-5): preserva dettagli fini  
+    - Grande (7-11): rimuove più rumore
+    """)
+    min_area = st.slider("Area minima (pixel²)", 100, 2000, 500, 50,
+                        help="Contorni più piccoli vengono ignorati")
+    binary_threshold = st.slider("Binary Threshold", 200, 255, 254, 5,
+                                help="Soglia per conversione maschera binaria")
+    kernel_size = st.slider("Kernel Size (morfologia)", 3, 15, 7, 2,
+                           help="Dimensione kernel per operazioni morfologiche (deve essere dispari)")
+    
+    # Assicura che kernel_size sia dispari
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    
+    st.divider()
+    
     # Limite frame per performance
     st.subheader("⚡ Performance")
     max_frames = st.slider("Max frame da elaborare", 50, 1000, 150, 50, 
@@ -106,7 +134,7 @@ with st.sidebar:
     process_button = st.button("🔄 Rielabora", use_container_width=True)
 
 
-def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mog2_history, mog2_threshold, max_frames=150):
+def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mog2_history, mog2_threshold, max_frames=150, min_area=500, binary_threshold=254, kernel_size=7):
     """Elabora il video applicando tracking su originale e filtrato"""
     
     # Carica video
@@ -195,10 +223,10 @@ def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mo
         # === PROCESSING VIDEO ORIGINALE ===
         # Background subtraction
         mask_original = bg_subtractor_original.apply(roi_clean.copy())
-        _, mask_original = cv2.threshold(mask_original, 254, 255, cv2.THRESH_BINARY)
+        _, mask_original = cv2.threshold(mask_original, binary_threshold, 255, cv2.THRESH_BINARY)
         
         # Operazioni morfologiche
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
         mask_original = cv2.morphologyEx(mask_original, cv2.MORPH_CLOSE, kernel, iterations=2)
         mask_original = cv2.morphologyEx(mask_original, cv2.MORPH_OPEN, kernel, iterations=1)
         
@@ -207,7 +235,7 @@ def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mo
         detections_original = []
         for contour in contours_original:
             area = cv2.contourArea(contour)
-            if area > 500:
+            if area > min_area:
                 x, y, w_box, h_box = cv2.boundingRect(contour)
                 detections_original.append([x, y, w_box, h_box])
         
@@ -237,7 +265,7 @@ def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mo
         
         # Background subtraction
         mask_filtered = bg_subtractor_filtered.apply(roi_filtered_clean.copy())
-        _, mask_filtered = cv2.threshold(mask_filtered, 254, 255, cv2.THRESH_BINARY)
+        _, mask_filtered = cv2.threshold(mask_filtered, binary_threshold, 255, cv2.THRESH_BINARY)
         
         # Operazioni morfologiche
         mask_filtered = cv2.morphologyEx(mask_filtered, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -248,7 +276,7 @@ def process_video(video_path, roi_mode, roi_manual_params, distanza_euclidea, mo
         detections_filtered = []
         for contour in contours_filtered:
             area = cv2.contourArea(contour)
-            if area > 500:
+            if area > min_area:
                 x, y, w_box, h_box = cv2.boundingRect(contour)
                 detections_filtered.append([x, y, w_box, h_box])
         
@@ -399,7 +427,7 @@ if video_path is not None:
                         use_container_width=True)
                 st.info(f"📐 Dimensioni video: {w_p}x{h_p} | ROI validata: {roi_w_p}x{roi_h_p} @ ({roi_x_p}, {roi_y_p})")
     
-    if not st.session_state.video_processed or process_button:
+    if process_button:
         st.info(f"📹 Elaborazione video: {video_name}")
         with st.spinner("🔄 Elaborazione in corso..."):
             frames_original, frames_filtered, masks_original, masks_filtered, stats, roi_info = process_video(
@@ -409,7 +437,10 @@ if video_path is not None:
                 distanza_euclidea,
                 mog2_history,
                 mog2_threshold,
-                max_frames
+                max_frames,
+                min_area,
+                binary_threshold,
+                kernel_size
             )
         
         if frames_original is not None:
