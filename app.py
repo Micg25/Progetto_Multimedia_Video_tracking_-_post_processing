@@ -70,7 +70,7 @@ with st.sidebar:
     st.subheader("🎯 Parametri Tracking")
     distanza_euclidea = st.slider(
         "Distanza euclidea massima (pixel)",
-        min_value=50,
+        min_value=25,
         max_value=500,
         value=350,
         step=10,
