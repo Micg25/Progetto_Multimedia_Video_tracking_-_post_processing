@@ -638,7 +638,7 @@ if video_path is not None:
                             st.caption("MOG2 Background Subtraction + Feature Matching (ORB) + Coordinate Smoothing")
                         
                         with col2:
-                            st.subheader("🟢 Video Filtrato + Tracking + ORB + Features")
+                            st.subheader("🟢 Tracking + Stabilized (ORB + RANSAC) + MA + Features Matching")
                             st.image(frames_filtered[st.session_state.current_frame], use_container_width=True, clamp=True)
                             st.caption("Stabilizzazione Video (ORB) + Moving Average Spaziale + MOG2 + Feature Matching + Smoothing")
                 
@@ -706,7 +706,7 @@ if video_path is not None:
                     st.caption("MOG2 Background Subtraction + Feature Matching (ORB) + Coordinate Smoothing")
                 
                 with col2:
-                    st.subheader("🟢 Video Filtrato + Tracking + ORB + Features")
+                    st.subheader("🟢 Tracking + Stabilized (ORB + RANSAC) + MA + Features Matching")
                     st.image(frames_filtered[frame_idx], use_container_width=True)
                     st.caption("Stabilizzazione Video (ORB) + Moving Average Spaziale + MOG2 + Feature Matching + Smoothing")
         
