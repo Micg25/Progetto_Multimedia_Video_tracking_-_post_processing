@@ -16,6 +16,136 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS personalizzato per migliorare lo stile dell'app - Tema Elegante
+st.markdown("""
+<style>
+    /* Sfondo principale - Nero elegante */
+    .stApp {
+        background-color: #1a1a1a !important;
+    }
+    
+    .main {
+        background-color: #1a1a1a !important;
+    }
+    
+    /* Stile per i titoli */
+    h1 {
+        color: #A78BFA !important;
+        font-weight: 700 !important;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.3);
+    }
+    
+    h2, h3 {
+        color: #C4B5FD !important;
+        font-weight: 600 !important;
+        text-shadow: 0 0 5px rgba(196, 181, 253, 0.2);
+    }
+    
+    /* Stile per il testo normale */
+    p, span, label {
+        color: #E5E5E5 !important;
+    }
+    
+    /* Stile per i divider */
+    hr {
+        border-color: #A78BFA !important;
+        opacity: 0.4;
+    }
+    
+    /* Stile per i bottoni */
+    .stButton > button {
+        background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1.5rem !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.5) !important;
+        background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%) !important;
+    }
+    
+    /* Stile per slider e input */
+    .stSlider > div > div > div {
+        background: linear-gradient(90deg, #A78BFA 0%, #7C3AED 100%) !important;
+    }
+    
+    /* Stile per le cards/container */
+    .stMarkdown, .stAlert {
+        border-radius: 8px !important;
+        background-color: rgba(167, 139, 250, 0.05) !important;
+        border: 1px solid rgba(167, 139, 250, 0.1) !important;
+    }
+    
+    /* Stile per la sidebar - Viola Tech */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #2d1b69 0%, #1a0f3f 100%) !important;
+        border-right: 1px solid rgba(167, 139, 250, 0.2) !important;
+    }
+    
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        color: #DDD6FE !important;
+    }
+    
+    /* Stile per le metriche */
+    [data-testid="stMetricValue"] {
+        color: #A78BFA !important;
+        font-weight: 700 !important;
+        text-shadow: 0 0 6px rgba(167, 139, 250, 0.2);
+    }
+    
+    /* Stile per gli info box */
+    .stInfo {
+        background-color: rgba(167, 139, 250, 0.08) !important;
+        border-left: 4px solid #A78BFA !important;
+    }
+    
+    /* Stile per le tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #1a1a1a !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #2a2a2a !important;
+        border: 1px solid rgba(167, 139, 250, 0.2) !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 10px 20px !important;
+        color: #E5E5E5 !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%) !important;
+        border: 1px solid #A78BFA !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+    }
+    
+    /* Stile per input fields */
+    input {
+        background-color: #2a2a2a !important;
+        color: #E5E5E5 !important;
+        border: 1px solid rgba(167, 139, 250, 0.3) !important;
+    }
+    
+    /* Animazione graduale per il caricamento */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .main .block-container {
+        animation: fadeIn 0.5s ease-in;
+        background-color: #1a1a1a !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🎥 Video Tracking & Post-Processing Comparison")
 st.markdown("### Confronto tra Video Originale e Video Filtrato con Tracking")
 
